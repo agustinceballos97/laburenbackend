@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from .. import crud, models, schemas, database
+import crud
+import models
+import schemas
+import database
 
 router = APIRouter(
     prefix="/products",
