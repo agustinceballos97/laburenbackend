@@ -6,9 +6,15 @@ import models
 
 models.Base.metadata.create_all(bind=engine)
 
-def load_products_from_excel(file_path: str):
-    df = pd.read_excel(file_path)
+def main():
+    # Path al archivo Excel desde la raíz del proyecto
+    file_path = os.path.join(os.path.dirname(__file__), "products.xlsx")
+    
+    if not os.path.exists(file_path):
+        print(f"❌ No se encontró el archivo: {file_path}")
+        return
 
+    df = pd.read_excel(file_path)
     db: Session = SessionLocal()
 
     try:
@@ -34,11 +40,3 @@ def load_products_from_excel(file_path: str):
         print(f"❌ Error al cargar productos: {e}")
     finally:
         db.close()
-
-if __name__ == "__main__":
-    # Path al archivo Excel (desde dentro del contenedor)
-    file_path = "/app/app/products.xlsx"
-    if not os.path.exists(file_path):
-        print(f"❌ No se encontró el archivo: {file_path}")
-    else:
-        load_products_from_excel(file_path)
