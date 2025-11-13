@@ -1,9 +1,15 @@
 from fastapi import FastAPI
 from routers import products, carts
 from database import engine, Base
+import load_products  
 
-# Crear todas las tablas definidas en models.py (si no existen)
 Base.metadata.create_all(bind=engine)
+
+try:
+    load_products.main()  # asegurate que tu script tenga una función main()
+    print("Products loaded successfully.")
+except Exception as e:
+    print(f"Error loading products: {e}")
 
 app = FastAPI(
     title="Laburen Store API",
@@ -11,11 +17,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Incluir routers
 app.include_router(products.router)
 app.include_router(carts.router)
 
-# Endpoint raíz opcional
 @app.get("/")
 def read_root():
     return {"message": "Bienvenido a Laburen Store API"}
