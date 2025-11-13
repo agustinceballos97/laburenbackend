@@ -5,8 +5,9 @@ import load_products
 
 Base.metadata.create_all(bind=engine)
 
+# Cargar productos desde Excel
 try:
-    load_products.main()  # asegurate que tu script tenga una función main()
+    load_products.main()
     print("Products loaded successfully.")
 except Exception as e:
     print(f"Error loading products: {e}")
