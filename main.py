@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from .routers import products, carts
-from .database import engine, Base
+from routers import products, carts
+from database import engine, Base
 
 # Crear todas las tablas definidas en models.py (si no existen)
 Base.metadata.create_all(bind=engine)
