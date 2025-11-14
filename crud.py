@@ -3,29 +3,35 @@ from sqlalchemy import or_
 import models
 import schemas
 
+# --------------------- PRODUCTOS --------------------- #
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
     query = db.query(models.Product)
 
     if q:
         keywords = q.lower().split()
         or_filters = []
+
         for kw in keywords:
+            like = f"%{kw}%"
             or_filters.extend([
-                models.Product.tipo_prenda.ilike(f"%{kw}%"),
-                models.Product.color.ilike(f"%{kw}%"),
-                models.Product.talla.ilike(f"%{kw}%"),
-                models.Product.descripcion.ilike(f"%{kw}%"),
-                models.Product.categoria.ilike(f"%{kw}%"),
+                models.Product.tipo_prenda.ilike(like),
+                models.Product.color.ilike(like),
+                models.Product.talla.ilike(like),
+                models.Product.descripcion.ilike(like),
+                models.Product.categoria.ilike(like),
             ])
-        # Subquery para IDs únicos
-        subquery = db.query(models.Product.id).filter(or_(*or_filters)).distinct().subquery()
-        query = query.filter(models.Product.id.in_(subquery))
+
+        # Evita duplicados
+        query = query.filter(or_(*or_filters)).group_by(models.Product.id)
 
     return query.offset(skip).limit(limit).all()
+
 
 def get_product(db: Session, product_id: int):
     return db.query(models.Product).filter(models.Product.id == product_id).first()
 
+
+# --------------------- CARRITO --------------------- #
 def create_cart(db: Session, cart: schemas.CartCreate):
     db_cart = models.Cart()
     db.add(db_cart)
@@ -39,6 +45,7 @@ def create_cart(db: Session, cart: schemas.CartCreate):
     db.commit()
     db.refresh(db_cart)
     return db_cart
+
 
 def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
     db_cart = db.query(models.Cart).filter(models.Cart.id == cart_id).first()
@@ -55,6 +62,7 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
     db.commit()
     db.refresh(db_cart)
     return db_cart
+
 
 def get_all_carts(db: Session, q: str = None):
     query = db.query(models.Cart)
@@ -77,6 +85,7 @@ def get_all_carts(db: Session, q: str = None):
             query = query.filter(or_(*or_filters)).distinct()
 
     return query.all()
+
 
 def get_cart(db: Session, cart_id: int):
     return db.query(models.Cart).filter(models.Cart.id == cart_id).first()
