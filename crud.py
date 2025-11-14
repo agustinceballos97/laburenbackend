@@ -1,18 +1,17 @@
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 from sqlalchemy import or_
 import models
 import schemas
 
 # -------------------------------
-# Productos
+# PRODUCTOS
 # -------------------------------
 
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
     """
-    Trae productos filtrando por keywords sin duplicar.
-    Las relaciones se cargan con selectinload para no multiplicar filas.
+    Trae productos filtrando por keywords, sin duplicados.
     """
-    query = db.query(models.Product).options(selectinload(models.Product.categorias))  # cargar relaciones sin duplicar
+    query = db.query(models.Product)
 
     if q:
         keywords = q.lower().split()
@@ -31,13 +30,11 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
 
 
 def get_product(db: Session, product_id: int):
-    return db.query(models.Product).options(selectinload(models.Product.categorias)).filter(
-        models.Product.id == product_id
-    ).first()
+    return db.query(models.Product).filter(models.Product.id == product_id).first()
 
 
 # -------------------------------
-# Carrito
+# CARRITO
 # -------------------------------
 
 def create_cart(db: Session, cart: schemas.CartCreate):
@@ -72,12 +69,10 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
 
 def get_all_carts(db: Session, q: str = None):
     """
-    Devuelve todos los carritos, filtrando por productos si q está presente.
-    Las relaciones se cargan con selectinload para evitar duplicados.
+    Devuelve todos los carritos.
+    Si se pasa 'q', filtra por los productos dentro de los carritos.
     """
-    query = db.query(models.Cart).options(
-        selectinload(models.Cart.items).selectinload(models.CartItem.product)
-    )
+    query = db.query(models.Cart)
 
     if q:
         if q.isdigit():
@@ -95,6 +90,4 @@ def get_all_carts(db: Session, q: str = None):
 
 
 def get_cart(db: Session, cart_id: int):
-    return db.query(models.Cart).options(
-        selectinload(models.Cart.items).selectinload(models.CartItem.product)
-    ).filter(models.Cart.id == cart_id).first()
+    return db.query(models.Cart).filter(models.Cart.id == cart_id).first()
