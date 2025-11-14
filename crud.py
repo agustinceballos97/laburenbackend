@@ -5,19 +5,13 @@ import schemas
 
 
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
-    """
-    Búsqueda robusta que:
-    - genera un subquery con ids únicos que cumplen el filtro
-    - hace un join con products por id para traer el ORM object sin duplicados
-    - respeta offset/limit correctamente
-    """
-    base_q = db.query(models.Product)
+
+    query = db.query(models.Product)
 
     if q:
         keywords = q.lower().split()
-        # aplico todos los filtros como AND de grupos OR por keyword
         for kw in keywords:
-            base_q = base_q.filter(
+            query = query.filter(
                 or_(
                     models.Product.tipo_prenda.ilike(f"%{kw}%"),
                     models.Product.color.ilike(f"%{kw}%"),
@@ -27,17 +21,13 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
                 )
             )
 
-    # subquery que devuelve ids únicos (distinct)
-    ids_subq = base_q.with_entities(models.Product.id).distinct().subquery()
+    # Subquery de IDs únicos
+    ids_subq = query.with_entities(models.Product.id).distinct().subquery()
 
-    # ahora traemos los productos uniendo por id con el subquery de ids,
-    # de esta forma evitamos duplicados aunque el filtro original hiciera joins múltiples
-    final_q = db.query(models.Product).join(ids_subq, models.Product.id == ids_subq.c.id)
+    # Traer productos uniendo con la subquery (solo una fila por producto)
+    final_query = db.query(models.Product).join(ids_subq, models.Product.id == ids_subq.c.id)
 
-    # opcional: si querés orderar por algo, agrégalo acá (ej: .order_by(models.Product.id))
-    final_q = final_q.offset(skip).limit(limit)
-
-    return final_q.all()
+    return final_query.offset(skip).limit(limit).all()
 
 
 def get_product(db: Session, product_id: int):
@@ -75,7 +65,9 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
 
 
 def get_all_carts(db: Session, q: str = None):
-    query = db.query(models.Cart).options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
+    query = db.query(models.Cart).options(
+        joinedload(models.Cart.items).joinedload(models.CartItem.product)
+    )
 
     if q:
         if q.isdigit():
