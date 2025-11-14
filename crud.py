@@ -1,12 +1,18 @@
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, func
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_
 import models
 import schemas
 
+# -------------------------------
+# Productos
+# -------------------------------
 
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
-
-    query = db.query(models.Product)
+    """
+    Trae productos filtrando por keywords sin duplicar.
+    Las relaciones se cargan con selectinload para no multiplicar filas.
+    """
+    query = db.query(models.Product).options(selectinload(models.Product.categorias))  # cargar relaciones sin duplicar
 
     if q:
         keywords = q.lower().split()
@@ -21,18 +27,18 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
                 )
             )
 
-    # Subquery de IDs únicos
-    ids_subq = query.with_entities(models.Product.id).distinct().subquery()
-
-    # Traer productos uniendo con la subquery (solo una fila por producto)
-    final_query = db.query(models.Product).join(ids_subq, models.Product.id == ids_subq.c.id)
-
-    return final_query.offset(skip).limit(limit).all()
+    return query.offset(skip).limit(limit).all()
 
 
 def get_product(db: Session, product_id: int):
-    return db.query(models.Product).filter(models.Product.id == product_id).first()
+    return db.query(models.Product).options(selectinload(models.Product.categorias)).filter(
+        models.Product.id == product_id
+    ).first()
 
+
+# -------------------------------
+# Carrito
+# -------------------------------
 
 def create_cart(db: Session, cart: schemas.CartCreate):
     db_cart = models.Cart()
@@ -65,34 +71,30 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
 
 
 def get_all_carts(db: Session, q: str = None):
+    """
+    Devuelve todos los carritos, filtrando por productos si q está presente.
+    Las relaciones se cargan con selectinload para evitar duplicados.
+    """
     query = db.query(models.Cart).options(
-        joinedload(models.Cart.items).joinedload(models.CartItem.product)
+        selectinload(models.Cart.items).selectinload(models.CartItem.product)
     )
 
     if q:
         if q.isdigit():
             query = query.filter(models.Cart.id == int(q))
         else:
-            query = (
-                query.join(models.Cart.items)
-                .join(models.CartItem.product)
-                .filter(
-                    or_(
-                        models.Product.tipo_prenda.ilike(f"%{q}%"),
-                        models.Product.color.ilike(f"%{q}%"),
-                        models.Product.descripcion.ilike(f"%{q}%")
-                    )
+            query = query.join(models.Cart.items).join(models.CartItem.product).filter(
+                or_(
+                    models.Product.tipo_prenda.ilike(f"%{q}%"),
+                    models.Product.color.ilike(f"%{q}%"),
+                    models.Product.descripcion.ilike(f"%{q}%")
                 )
-                .distinct()
-            )
+            ).distinct()
 
     return query.all()
 
 
 def get_cart(db: Session, cart_id: int):
-    return (
-        db.query(models.Cart)
-        .options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
-        .filter(models.Cart.id == cart_id)
-        .first()
-    )
+    return db.query(models.Cart).options(
+        selectinload(models.Cart.items).selectinload(models.CartItem.product)
+    ).filter(models.Cart.id == cart_id).first()
