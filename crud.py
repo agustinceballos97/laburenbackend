@@ -20,19 +20,18 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
                     models.Product.categoria.ilike(f"%{kw}%")
                 )
             )
-    
-    unique_ids_query = query.with_entities(models.Product.id).distinct()
-    
-    unique_ids = [id_[0] for id_ in unique_ids_query.all()] 
-    
-    final_query = db.query(models.Product).filter(models.Product.id.in_(unique_ids))
-    
-    return final_query.offset(skip).limit(limit).all()
+
+    # 🔥 FIX: evita productos duplicados
+    query = query.distinct(models.Product.id)
+
+    return query.offset(skip).limit(limit).all()
+
 
 
 def get_product(db: Session, product_id: int):
     
     return db.query(models.Product).filter(models.Product.id == product_id).first()
+
 
 
 def create_cart(db: Session, cart: schemas.CartCreate):
@@ -48,6 +47,7 @@ def create_cart(db: Session, cart: schemas.CartCreate):
     db.commit()
     db.refresh(db_cart)
     return db_cart
+
 
 
 def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
@@ -67,23 +67,32 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
     return db_cart
 
 
+
 def get_all_carts(db: Session, q: str = None):
     
-    query = db.query(models.Cart).options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
+    query = db.query(models.Cart).options(
+        joinedload(models.Cart.items).joinedload(models.CartItem.product)
+    )
 
     if q:
         if q.isdigit():
             query = query.filter(models.Cart.id == int(q))
         else:
-            query = query.join(models.Cart.items).join(models.CartItem.product).filter(
-                or_(
-                    models.Product.tipo_prenda.ilike(f"%{q}%"),
-                    models.Product.color.ilike(f"%{q}%"),
-                    models.Product.descripcion.ilike(f"%{q}%")
+            query = (
+                query.join(models.Cart.items)
+                .join(models.CartItem.product)
+                .filter(
+                    or_(
+                        models.Product.tipo_prenda.ilike(f"%{q}%"),
+                        models.Product.color.ilike(f"%{q}%"),
+                        models.Product.descripcion.ilike(f"%{q}%")
+                    )
                 )
-            ).distinct()
+                .distinct()
+            )
 
     return query.all()
+
 
 
 def get_cart(db: Session, cart_id: int):
