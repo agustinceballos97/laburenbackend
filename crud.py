@@ -15,19 +15,22 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
 
     if q:
         keywords = q.lower().split()
-        or_filters = []
-
-        # Construimos un solo OR con todas las palabras y campos
-        for kw in keywords:
-            or_filters.extend([
+        # Para cada keyword, buscamos en todos los campos relevantes
+        or_filters = [
+            or_(
                 models.Product.tipo_prenda.ilike(f"%{kw}%"),
                 models.Product.color.ilike(f"%{kw}%"),
                 models.Product.talla.ilike(f"%{kw}%"),
                 models.Product.descripcion.ilike(f"%{kw}%"),
                 models.Product.categoria.ilike(f"%{kw}%"),
-            ])
+            )
+            for kw in keywords
+        ]
+        # Aplicamos todos los ORs como filtros independientes (cada palabra puede estar en cualquier campo)
+        query = query.filter(*or_filters)
 
-        query = query.filter(or_(*or_filters))
+    # Aseguramos que cada producto aparezca solo una vez
+    query = query.distinct(models.Product.id)
 
     return query.offset(skip).limit(limit).all()
 
@@ -39,81 +42,41 @@ def get_product(db: Session, product_id: int):
     return db.query(models.Product).filter(models.Product.id == product_id).first()
 
 
-# -------------------------------
-# CARRITO
-# -------------------------------
-
-def create_cart(db: Session, cart: schemas.CartCreate):
+def create_product(db: Session, product: schemas.ProductCreate):
     """
-    Crea un carrito y sus items.
+    Crea un producto nuevo.
     """
-    db_cart = models.Cart()
-    db.add(db_cart)
+    db_product = models.Product(**product.dict())
+    db.add(db_product)
     db.commit()
-    db.refresh(db_cart)
-
-    for item in cart.items:
-        db_item = models.CartItem(cart_id=db_cart.id, product_id=item.product_id, qty=item.qty)
-        db.add(db_item)
-
-    db.commit()
-    db.refresh(db_cart)
-    return db_cart
+    db.refresh(db_product)
+    return db_product
 
 
-def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
+def update_product(db: Session, product_id: int, product_update: schemas.ProductUpdate):
     """
-    Actualiza un carrito existente reemplazando sus items.
+    Actualiza un producto existente.
     """
-    db_cart = db.query(models.Cart).filter(models.Cart.id == cart_id).first()
-    if not db_cart:
+    db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not db_product:
         return None
 
-    # Borramos los items anteriores
-    db.query(models.CartItem).filter(models.CartItem.cart_id == cart_id).delete()
-    db.commit()
-
-    # Agregamos los nuevos items
-    for item in cart_update.items:
-        db_item = models.CartItem(cart_id=cart_id, product_id=item.product_id, qty=item.qty)
-        db.add(db_item)
+    for key, value in product_update.dict(exclude_unset=True).items():
+        setattr(db_product, key, value)
 
     db.commit()
-    db.refresh(db_cart)
-    return db_cart
+    db.refresh(db_product)
+    return db_product
 
 
-def get_all_carts(db: Session, q: str = None):
+def delete_product(db: Session, product_id: int):
     """
-    Trae todos los carritos.
-    Si se pasa 'q', filtra por productos dentro de los carritos.
+    Borra un producto por ID.
     """
-    query = db.query(models.Cart)
+    db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not db_product:
+        return None
 
-    if q:
-        if q.isdigit():
-            query = query.filter(models.Cart.id == int(q))
-        else:
-            # filtramos carritos por productos que coinciden con q
-            keywords = q.lower().split()
-            or_filters = []
-            for kw in keywords:
-                or_filters.extend([
-                    models.Product.tipo_prenda.ilike(f"%{kw}%"),
-                    models.Product.color.ilike(f"%{kw}%"),
-                    models.Product.talla.ilike(f"%{kw}%"),
-                    models.Product.descripcion.ilike(f"%{kw}%"),
-                    models.Product.categoria.ilike(f"%{kw}%"),
-                ])
-
-            query = query.join(models.Cart.items).join(models.CartItem.product)
-            query = query.filter(or_(*or_filters)).distinct()
-
-    return query.all()
-
-
-def get_cart(db: Session, cart_id: int):
-    """
-    Trae un carrito específico por ID.
-    """
-    return db.query(models.Cart).filter(models.Cart.id == cart_id).first()
+    db.delete(db_product)
+    db.commit()
+    return db_product
