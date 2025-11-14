@@ -17,9 +17,10 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
                 models.Product.descripcion.ilike(f"%{kw}%"),
                 models.Product.categoria.ilike(f"%{kw}%"),
             ])
-        query = query.filter(or_(*or_filters))
+        # Subquery para IDs únicos
+        subquery = db.query(models.Product.id).filter(or_(*or_filters)).distinct().subquery()
+        query = query.filter(models.Product.id.in_(subquery))
 
-    query = query.distinct(models.Product.id)
     return query.offset(skip).limit(limit).all()
 
 def get_product(db: Session, product_id: int):
