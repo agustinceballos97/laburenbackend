@@ -2,30 +2,32 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 import models
 import schemas
+from typing import List, Optional
+
 
 # --------------------- PRODUCTOS --------------------- #
-def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
+def get_products(db: Session, q: Optional[str] = None, skip: int = 0, limit: int = 20) -> List[models.Product]:
     query = db.query(models.Product)
 
     if q:
         keywords = q.lower().split()
-        or_filters = []
-
         for kw in keywords:
             like = f"%{kw}%"
-            or_filters.extend([
-                models.Product.tipo_prenda.ilike(like),
-                models.Product.color.ilike(like),
-                models.Product.talla.ilike(like),
-                models.Product.descripcion.ilike(like),
-                models.Product.categoria.ilike(like),
-            ])
+            query = query.filter(
+                or_(
+                    models.Product.tipo_prenda.ilike(like),
+                    models.Product.descripcion.ilike(like),
+                    models.Product.categoria.ilike(like),
+                    models.Product.color.ilike(like),
+                    models.Product.talla.ilike(like)
+                )
+            )
 
-        # Evita duplicados
-        query = query.filter(or_(*or_filters)).distinct(models.Product.id)
-
+    query = query.distinct(models.Product.id)  # evitar duplicados
     return query.offset(skip).limit(limit).all()
 
+def get_product(db: Session, product_id: int):
+    return db.query(models.Product).filter(models.Product.id == product_id).first()
 
 def get_product(db: Session, product_id: int):
     return db.query(models.Product).filter(models.Product.id == product_id).first()
