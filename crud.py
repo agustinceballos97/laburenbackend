@@ -1,12 +1,17 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, func # Asegúrate de que 'func' está aquí
 import models
 import schemas
-from sqlalchemy import func 
 
 
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
-
+    """
+    Obtiene productos aplicando un filtro de búsqueda 'q'.
+    Utiliza una subconsulta para obtener los IDs únicos primero,
+    garantizando que no haya duplicaciones causadas por joins ocultos.
+    """
+    
+    # 1. Construir la consulta de filtrado (sin paginación)
     query = db.query(models.Product)
 
     if q:
@@ -21,11 +26,22 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
                     models.Product.categoria.ilike(f"%{kw}%")
                 )
             )
+
+    # 2. Obtener los IDs ÚNICOS de los productos filtrados
+    # Esto asegura que sólo traemos IDs reales (1 a 100) y sin repetición.
+    unique_ids_query = query.with_entities(models.Product.id).distinct()
     
-    return query.group_by(models.Product.id).offset(skip).limit(limit).all()
+    # Ejecutar la subconsulta para obtener la lista de IDs (ej: [2, 3, 17, ...])
+    unique_ids = [id_[0] for id_ in unique_ids_query.all()] 
+    
+    # 3. Filtrar la consulta principal por los IDs únicos y aplicar paginación
+    final_query = db.query(models.Product).filter(models.Product.id.in_(unique_ids))
+    
+    return final_query.offset(skip).limit(limit).all()
 
 
 def get_product(db: Session, product_id: int):
+    """Obtiene un producto por ID."""
     return db.query(models.Product).filter(models.Product.id == product_id).first()
 
 
@@ -64,7 +80,10 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
 
 
 def get_all_carts(db: Session, q: str = None):
-
+    """
+    Lista todos los carritos.
+    Si se pasa 'q', busca por ID de carrito o por nombre de producto dentro del carrito.
+    """
     query = db.query(models.Cart).options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
 
     if q:
