@@ -5,7 +5,6 @@ import schemas
 from typing import List, Optional
 
 
-# --------------------- PRODUCTOS --------------------- #
 def get_products(db: Session, q: Optional[str] = None, skip: int = 0, limit: int = 20) -> List[models.Product]:
     query = db.query(models.Product)
 
@@ -23,11 +22,20 @@ def get_products(db: Session, q: Optional[str] = None, skip: int = 0, limit: int
                 )
             )
 
-    query = query.distinct(models.Product.id)  # evitar duplicados
-    return query.offset(skip).limit(limit).all()
+    results = query.offset(skip).limit(limit * 3).all()
 
-def get_product(db: Session, product_id: int):
-    return db.query(models.Product).filter(models.Product.id == product_id).first()
+    # Filtrar duplicados por contenido
+    seen = set()
+    unique_products = []
+    for p in results:
+        key = (p.tipo_prenda.lower(), p.talla.lower(), p.color.lower(), p.categoria.lower(), p.descripcion.lower())
+        if key not in seen:
+            seen.add(key)
+            unique_products.append(p)
+        if len(unique_products) >= limit:
+            break
+
+    return unique_products
 
 def get_product(db: Session, product_id: int):
     return db.query(models.Product).filter(models.Product.id == product_id).first()
