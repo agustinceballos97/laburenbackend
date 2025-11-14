@@ -5,37 +5,46 @@ import schemas
 
 
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
-    
-    query = db.query(models.Product)
+    """
+    Búsqueda robusta que:
+    - genera un subquery con ids únicos que cumplen el filtro
+    - hace un join con products por id para traer el ORM object sin duplicados
+    - respeta offset/limit correctamente
+    """
+    base_q = db.query(models.Product)
 
     if q:
         keywords = q.lower().split()
+        # aplico todos los filtros como AND de grupos OR por keyword
         for kw in keywords:
-            query = query.filter(
+            base_q = base_q.filter(
                 or_(
                     models.Product.tipo_prenda.ilike(f"%{kw}%"),
                     models.Product.color.ilike(f"%{kw}%"),
                     models.Product.talla.ilike(f"%{kw}%"),
                     models.Product.descripcion.ilike(f"%{kw}%"),
-                    models.Product.categoria.ilike(f"%{kw}%")
+                    models.Product.categoria.ilike(f"%{kw}%"),
                 )
             )
 
-    # 🔥 FIX: evita productos duplicados
-    query = query.distinct(models.Product.id)
+    # subquery que devuelve ids únicos (distinct)
+    ids_subq = base_q.with_entities(models.Product.id).distinct().subquery()
 
-    return query.offset(skip).limit(limit).all()
+    # ahora traemos los productos uniendo por id con el subquery de ids,
+    # de esta forma evitamos duplicados aunque el filtro original hiciera joins múltiples
+    final_q = db.query(models.Product).join(ids_subq, models.Product.id == ids_subq.c.id)
 
+    # opcional: si querés orderar por algo, agrégalo acá (ej: .order_by(models.Product.id))
+    final_q = final_q.offset(skip).limit(limit)
+
+    return final_q.all()
 
 
 def get_product(db: Session, product_id: int):
-    
     return db.query(models.Product).filter(models.Product.id == product_id).first()
 
 
-
 def create_cart(db: Session, cart: schemas.CartCreate):
-    
     db_cart = models.Cart()
     db.add(db_cart)
     db.commit()
@@ -49,9 +58,7 @@ def create_cart(db: Session, cart: schemas.CartCreate):
     return db_cart
 
 
-
 def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
-    
     db_cart = db.query(models.Cart).filter(models.Cart.id == cart_id).first()
     if not db_cart:
         return None
@@ -67,12 +74,8 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
     return db_cart
 
 
-
 def get_all_carts(db: Session, q: str = None):
-    
-    query = db.query(models.Cart).options(
-        joinedload(models.Cart.items).joinedload(models.CartItem.product)
-    )
+    query = db.query(models.Cart).options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
 
     if q:
         if q.isdigit():
@@ -94,9 +97,7 @@ def get_all_carts(db: Session, q: str = None):
     return query.all()
 
 
-
 def get_cart(db: Session, cart_id: int):
-    
     return (
         db.query(models.Cart)
         .options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
