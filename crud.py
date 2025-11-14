@@ -22,7 +22,7 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
             ])
 
         # Evita duplicados
-        query = query.filter(or_(*or_filters)).group_by(models.Product.id)
+        query = query.filter(or_(*or_filters)).distinct(models.Product.id)
 
     return query.offset(skip).limit(limit).all()
 
