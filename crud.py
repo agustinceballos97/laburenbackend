@@ -2,15 +2,11 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 import models
 import schemas
-# 🚨 Importamos func para poder usar group_by
 from sqlalchemy import func 
 
 
 def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
-    """
-    Obtiene una lista de productos, aplicando un filtro de búsqueda 'q'.
-    Se corrige la duplicación de IDs usando group_by.
-    """
+
     query = db.query(models.Product)
 
     if q:
@@ -26,13 +22,10 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, q: str = None):
                 )
             )
     
-    # 🌟 CORRECCIÓN para evitar duplicación de IDs 🌟
-    # Usar .group_by(models.Product.id) fuerza a que cada ID sea devuelto una sola vez.
     return query.group_by(models.Product.id).offset(skip).limit(limit).all()
 
 
 def get_product(db: Session, product_id: int):
-    """Obtiene un producto por ID."""
     return db.query(models.Product).filter(models.Product.id == product_id).first()
 
 
@@ -71,10 +64,7 @@ def update_cart(db: Session, cart_id: int, cart_update: schemas.CartCreate):
 
 
 def get_all_carts(db: Session, q: str = None):
-    """
-    Lista todos los carritos.
-    Si se pasa 'q', busca por ID de carrito o por nombre de producto dentro del carrito.
-    """
+
     query = db.query(models.Cart).options(joinedload(models.Cart.items).joinedload(models.CartItem.product))
 
     if q:
